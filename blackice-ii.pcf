@@ -163,4 +163,4 @@ set_io DBG1 49 # DBG1 - GBIN5
 set_io greset 128 # Connected to CH340 RTS and also P1 (uart Pmod above)
 
 # Onboard 100Mhz oscillator
-set_io clk 129
+set_io clk100 129

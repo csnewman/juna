@@ -1,10 +1,24 @@
-`include "blink.sv"
 `include "w6debug.sv"
 `include "debounce.sv"
 
+module Clock_divider (
+    clock_in,
+    clock_out
+);
+  input clock_in;  // input clock on FPGA
+  output reg clock_out;  // output clock after dividing the input clock by divisor
+  reg [3:0] counter = 4'd0;
+  parameter DIVISOR = 4'd2;
+  always @(posedge clock_in) begin
+    counter <= counter + 4'd1;
+    if (counter >= (DIVISOR - 1)) counter <= 4'd0;
+    clock_out <= (counter < DIVISOR / 2) ? 1'b1 : 1'b0;
+  end
+endmodule
+
 module blackice (
     // 100MHz clock input
-    input clk,
+    input clk100,
     // Global internal reset connected to RTS on ch340 and also PMOD[1]
     input greset,
 
@@ -38,9 +52,18 @@ module blackice (
   assign RAMCS = 1'b1;
   assign RAMLB = 1'bz;
   assign RAMUB = 1'bz;
-  assign PMOD[51:0] = {52{1'bz}};
+  assign PMOD[54:0] = {55{1'bz}};
 
-  assign PMOD[52] = B2;
+  //   assign PMOD[52] = B2;
+
+  wire clk;
+
+//   assign clk = clk100;
+
+  Clock_divider clkdiv (
+      .clock_in (clk100),
+      .clock_out(clk)
+  );
 
   wire rst;
 
@@ -48,15 +71,6 @@ module blackice (
       .clk(clk),
       .button(B2),
       .state(rst)
-  );
-
-  blink my_blink (
-      .clk (clk),
-      .rst (rst),
-      .but (B1),
-      .led (PMOD[55]),
-      .led2(PMOD[54]),
-      .led3(PMOD[53])
   );
 
   w6debug w6debug_inst (
@@ -67,7 +81,8 @@ module blackice (
       .io_cts(QSPIDQ[0]),
       .io_rts(QSPIDQ[1]),
       .io_in(QSPIDQ[2]),
-      .io_out(QSPIDQ[3])
+      .io_out(QSPIDQ[3]),
+      .led(PMOD[55])
   );
 
 endmodule
