@@ -96,9 +96,6 @@ module debug_regfile (
   reg available;
   reg [63:0] value;
 
-
-  reg [31:0] someval;
-
   assign bus_data = bus_addr == 1 && state != 0 ? value : 'z;
   assign bus_available = bus_addr == 1 ? available : 'z;
   assign bus_accepted = bus_addr == 1 ? accepted : 'z;
