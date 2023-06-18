@@ -106,16 +106,6 @@ module blackice (
       .debug_bus_accepted(debug_bus_accepted)
   );
 
-
-  wire sram_req;
-  wire sram_ready;
-  wire sram_rd;
-  wire [17:0] sram_addr;
-  wire [1:0] sram_be;
-  wire [15:0] sram_wr_data;
-  wire sram_rd_data_vld;
-  wire [15:0] sram_rd_data;
-
   ram ram_inst (
       .rst(rst),
       .clk(clk),
