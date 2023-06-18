@@ -1,5 +1,6 @@
 `include "w6debug.sv"
 `include "debounce.sv"
+`include "regfile.sv"
 
 module Clock_divider (
     clock_in,
@@ -73,6 +74,17 @@ module blackice (
       .state(rst)
   );
 
+  wire [7:0] debug_bus_addr;
+  wire debug_bus_start;
+  wire [63:0] debug_bus_data;
+  wire debug_bus_available;
+  wire debug_bus_accepted;
+
+
+assign PMOD[55] = B1;
+
+      // .led(PMOD[55]),
+
   w6debug w6debug_inst (
       .clk(clk),
       .rst(rst),
@@ -82,7 +94,22 @@ module blackice (
       .io_rts(QSPIDQ[1]),
       .io_in(QSPIDQ[2]),
       .io_out(QSPIDQ[3]),
-      .led(PMOD[55])
+      .bus_addr(debug_bus_addr),
+      .bus_start(debug_bus_start),
+      .bus_data(debug_bus_data),
+      .bus_available(debug_bus_available),
+      .bus_accepted(debug_bus_accepted)
+  );
+
+  regfile regfile_inst(
+    .rst(rst),
+    .clk(clk),
+
+    .debug_bus_addr(debug_bus_addr),
+    .debug_bus_start(debug_bus_start),
+    .debug_bus_data(debug_bus_data),
+    .debug_bus_available(debug_bus_available),
+    .debug_bus_accepted(debug_bus_accepted)
   );
 
 endmodule

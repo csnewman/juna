@@ -7,7 +7,12 @@ module w6debug (
     output reg io_rts,
     input io_in,
     output reg io_out,
-    output led
+
+    output [7:0] bus_addr,
+    output bus_start,
+    inout [63:0] bus_data,
+    input bus_available,
+    input bus_accepted
 );
   reg clock_state = 0;
 
@@ -34,11 +39,6 @@ module w6debug (
   wire [7:0] out_requested;
   assign out_possible = out_count == 0 && !out_request;
 
-  wire [7:0] bus_addr;
-  wire [31:0] bus_data;
-  wire bus_available;
-  wire bus_accepted;
-
   debug_control controller (
       .clk(clk),
       .rst(rst),
@@ -49,19 +49,10 @@ module w6debug (
       .out_request(out_request),
       .out_buffer(out_requested),
       .bus_addr(bus_addr),
+      .bus_start(bus_start),
       .bus_data(bus_data),
       .bus_available(bus_available),
       .bus_accepted(bus_accepted)
-  );
-
-  debug_example ex (
-      .clk(clk),
-      .rst(rst),
-      .bus_addr(bus_addr),
-      .bus_data(bus_data),
-      .bus_available(bus_available),
-      .bus_accepted(bus_accepted),
-      .led(led)
   );
 
   always @(posedge clk) begin
@@ -111,66 +102,6 @@ module w6debug (
 
 endmodule
 
-module debug_example (
-    input rst,
-    input clk,
-
-    input [7:0] bus_addr,
-    inout [31:0] bus_data,
-    output bus_available,
-    output bus_accepted,
-
-    output led
-);
-
-  reg [3:0] state;
-  reg accepted;
-  reg available;
-  reg [31:0] value;
-
-  assign bus_data = bus_addr == 1 && state != 0 ? value : 'z;
-  assign bus_available = bus_addr == 1 ? available : 'z;
-  assign bus_accepted = bus_addr == 1 ? accepted : 'z;
-  assign led = value[0];
-
-  always @(posedge clk) begin
-    if (rst) begin
-      state <= 0;
-      accepted <= 0;
-      available <= 0;
-    end else begin
-      case (state)
-        0: begin
-          accepted  <= 0;
-          available <= 0;
-
-          if (bus_addr == 1) begin
-            accepted <= 1;
-            value <= bus_data + 32'd12;
-            state <= 1;
-          end
-        end
-        1: begin
-          state <= 2;
-          accepted <= 0;
-          available <= 1;
-        end
-        2: begin
-          accepted <= 0;
-          available <= 0;
-          state <= 0;
-        end
-
-        default: begin
-
-        end
-
-      endcase
-    end
-  end
-
-endmodule
-
 module debug_control (
     input rst,
     input clk,
@@ -184,33 +115,31 @@ module debug_control (
     output reg out_request,
     output reg [7:0] out_buffer,
 
-    output [7:0] bus_addr,
-    inout [31:0] bus_data,
+    output reg [7:0] bus_addr,
+    output reg bus_start,
+    inout [63:0] bus_data,
     input bus_available,
     input bus_accepted
 );
 
   reg [ 3:0] state;
-  reg [ 1:0] count;
-
-  reg [ 7:0] target;
-  reg [31:0] ldata;
-
+  reg [ 2:0] count;
+  reg [63:0] ldata;
   assign bus_data = state == 2 ? ldata : 'z;
-  assign bus_addr = (state != 0 && state != 1) ? target : 0;
 
   always @(posedge clk) begin
     if (rst) begin
       state <= 0;
-      target <= 0;
+      bus_addr <= 0;
       out_request <= 0;
+      bus_start <= 0;
     end else begin
       case (state)
         4'd0: begin  // Waiting for cmd
           if (in_available) begin
             state <= 1;
             in_accepted <= 1;
-            target <= in_buffer;
+            bus_addr <= in_buffer;
             count <= 0;
           end
         end
@@ -233,8 +162,25 @@ module debug_control (
               end
               3: begin
                 ldata[31:24] <= in_buffer;
+                count <= 4;
+              end
+              4: begin
+                ldata[39:32] <= in_buffer;
+                count <= 5;
+              end
+              5: begin
+                ldata[47:40] <= in_buffer;
+                count <= 6;
+              end
+              6: begin
+                ldata[55:48] <= in_buffer;
+                count <= 7;
+              end
+              7: begin
+                ldata[63:56] <= in_buffer;
                 state <= 2;
                 count <= 0;
+                bus_start <= 1;
               end
               default: begin
 
@@ -247,6 +193,7 @@ module debug_control (
         4'd2: begin
           if (bus_accepted) begin
             state <= 3;
+            bus_start <= 0;
           end
         end
 
@@ -277,6 +224,22 @@ module debug_control (
               end
               3: begin
                 out_buffer <= ldata[31:24];
+                count <= 4;
+              end
+              4: begin
+                out_buffer <= ldata[39:32];
+                count <= 5;
+              end
+              5: begin
+                out_buffer <= ldata[47:40];
+                count <= 6;
+              end
+              6: begin
+                out_buffer <= ldata[55:48];
+                count <= 7;
+              end
+              7: begin
+                out_buffer <= ldata[63:56];
                 state <= 0;
                 count <= 0;
               end
@@ -302,11 +265,13 @@ module debug_control (
         out_request <= 0;
       end
 
+
+      if (in_accepted) begin
+        in_accepted <= 0;
+      end
+
     end
 
-    if (in_accepted) begin
-      in_accepted <= 0;
-    end
   end
 
 
