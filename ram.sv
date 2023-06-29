@@ -1,3 +1,7 @@
+`define RAM_STATE_IDLE 3'd0
+`define RAM_STATE_BUSY1 3'd1
+`define RAM_STATE_BUSY2 3'd2
+
 module ram (
     input rst,
     input clk,
@@ -14,28 +18,46 @@ module ram (
     output   RAMOE,
     output   RAMLB,
     output   RAMUB,
-    output [17:0] ADR,
-    inout [15:0]    DAT
+    output reg [17:0] ADR,
+    inout [15:0]    DAT,
+
+    input [17:0] a_adr,
+    input a_req,
+    output a_ack,
+    input a_write,
+    input [1:0] a_sel,
+    output [15:0] a_rdata,
+    input [15:0] a_wdata
+
+
 );
 
+  reg [17:0] b_adr;
+  reg b_req;
+  reg b_ack;
+  reg b_write;
+  reg [1:0] b_sel;
+  reg [15:0] b_rdata;
+  reg [15:0] b_wdata;
+
+
   assign RAMCS = 0;  // active low
+  assign RAMOE = 0;  // active low
+
+  reg [1:0] bytesel;
   assign RAMLB = !bytesel[0];  // active low
   assign RAMUB = !bytesel[1];  // active low
 
   assign RAMWE = !isout;  // active low
-  assign RAMOE = 0;  // active low
-
-  reg [1:0] bytesel;
 
   reg isout;
-  assign isout = !ram_rd;
-
   reg [15:0] outdata;
+
   assign DAT = isout ? outdata : 'z;
+  assign a_rdata = DAT;
+  assign b_rdata = DAT;
 
-  // assign outdata = 60;
-
-  reg ram_rd;
+  reg [2:0] state;
 
 
   debug_ram debug_ram_inst (
@@ -47,19 +69,56 @@ module ram (
       .bus_available(debug_bus_available),
       .bus_accepted(debug_bus_accepted),
 
-
-      .ram_rd(ram_rd),
-      .ram_addr(ADR),
-      .ram_be(bytesel),
-      .ram_rd_data(DAT),
-      .ram_wr_data(outdata)
+      .a_adr  (b_adr),
+      .a_req  (b_req),
+      .a_ack  (b_ack),
+      .a_write(b_write),
+      .a_sel  (b_sel),
+      .a_rdata(b_rdata),
+      .a_wdata(b_wdata)
   );
 
-  always @(posedge clk) begin
-    if (rst) begin
-      // isout
+  reg next_a;
+  reg next_b;
 
+  always @(posedge clk) begin
+    a_ack <= 0;
+    b_ack <= 0;
+
+    if (rst) begin
+      state <= `RAM_STATE_IDLE;
+      isout <= 0;
+      a_ack <= 0;
+      b_ack <= 0;
     end else begin
+      case (state)
+        `RAM_STATE_IDLE: begin
+          isout <= 0;
+
+          if (a_req && !b_req) begin
+            ADR <= a_adr;
+            bytesel <= a_sel;
+            outdata <= a_wdata;
+            isout <= a_write;
+            a_ack <= 1;
+            // state <= `RAM_STATE_BUSY1;
+          end else if (b_req) begin
+            ADR <= b_adr;
+            bytesel <= b_sel;
+            outdata <= b_wdata;
+            isout <= b_write;
+            b_ack <= 1;
+            // state <= `RAM_STATE_BUSY1;
+          end
+
+        end
+        `RAM_STATE_BUSY1: begin
+          state <= `RAM_STATE_IDLE;
+        end
+        default: begin
+
+        end
+      endcase
     end
 
 
@@ -77,21 +136,13 @@ module debug_ram (
     output bus_available,
     output bus_accepted,
 
-    // input ram_ready,
-    // output reg ram_req,
-    // input ram_act,
-
-    output reg ram_rd,
-    output [17:0] ram_addr,
-    output [1:0] ram_be,
-
-
-    output [15:0] ram_wr_data,
-    // input ram_rd_data_vld,
-    input  [15:0] ram_rd_data
-
-
-
+    output [17:0] a_adr,
+    output reg a_req,
+    input a_ack,
+    output reg a_write,
+    output [1:0] a_sel,
+    input [15:0] a_rdata,
+    output [15:0] a_wdata
 );
 
   reg [3:0] state;
@@ -105,11 +156,11 @@ module debug_ram (
 
 
   reg [18:0] target;
-  assign ram_addr = target[18:1];
-  assign ram_be   = target[0] ? 2 : 1;
+  assign a_adr = target[18:1];
+  assign a_sel = target[0] ? 2 : 1;
 
   reg [7:0] write_value;
-  assign ram_wr_data = {write_value, write_value};
+  assign a_wdata = {write_value, write_value};
 
   // assign ram_wr_data = 0;
 
@@ -122,7 +173,8 @@ module debug_ram (
 
       // ram_req <= 0;
       target <= 0;
-      ram_rd <= 1;
+      a_write <= 0;
+      a_req <= 0;
 
     end else begin
       case (state)
@@ -133,8 +185,9 @@ module debug_ram (
           // && ram_ready
           if (bus_addr == 2 && bus_start) begin
             accepted <= 1;
+            a_req <= 1;
 
-            ram_rd <= bus_data[0:0] == 0;
+            a_write <= bus_data[0:0] == 1;
             target <= bus_data[26:8];
             write_value <= bus_data[63:56];
 
@@ -144,30 +197,25 @@ module debug_ram (
         end
         1: begin
           accepted <= 0;
-          write_value <= 0;
-          ram_rd <= 1;
+          // write_value <= 0;
 
-          if (ram_rd) begin
-            if (target[0]) begin
-              value <= {{56{1'b1}}, ram_rd_data[15:8]};
+          if (a_ack) begin
+            a_req   <= 0;
+            a_write <= 0;
+
+            if (a_write) begin
+              value <= 123;
             end else begin
-              value <= {{56{1'b1}}, ram_rd_data[7:0]};
+              if (target[0]) begin
+                value <= {{56{1'b1}}, a_rdata[15:8]};
+              end else begin
+                value <= {{56{1'b1}}, a_rdata[7:0]};
+              end
             end
 
-            // value <= 3;
-            available <= 1;
-            state <= 2;
-
-            // end
-          end else begin
-            value <= 123;
             available <= 1;
             state <= 2;
           end
-
-          // available <= 1;
-          // state <= 2;
-          // value <= 2;
         end
 
         2: begin
@@ -175,11 +223,11 @@ module debug_ram (
           state <= 0;
         end
 
-        3: begin
-          accepted <= 0;
-          available <= 0;
-          state <= 0;
-        end
+        // 3: begin
+        //   accepted <= 0;
+        //   available <= 0;
+        //   state <= 0;
+        // end
 
         default: begin
           //   state <= 'z;

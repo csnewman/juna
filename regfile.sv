@@ -2,9 +2,10 @@ module regfile (
     input rst,
     input clk,
 
-    // input [3:0] a_addr,
-    // input a_write,
-    // inout [31:0] a_data,
+    input [3:0] a_addr,
+    input a_write,
+    input [31:0] a_wdata,
+    output reg [31:0] a_rdata,
 
     input [7:0] debug_bus_addr,
     input debug_bus_start,
@@ -57,6 +58,11 @@ module regfile (
       if (b_write) begin
         registers[b_addr] <= b_out;
       end
+
+      if (a_write) begin
+        registers[a_addr] <= a_wdata;
+      end
+
       //  else begin
       //   b_in <= registers[b_addr];
       // end
@@ -68,6 +74,7 @@ module regfile (
   always @(negedge clk) begin
     // if (!rst) begin
     // if (!b_write) begin
+    a_rdata <= registers[a_addr];
     b_in <= registers[b_addr];
     // end
     // end
@@ -130,12 +137,27 @@ module debug_regfile (
           port_write <= 0;
           state <= 3;
 
+          // state <= 2;
+
           if (port_write) begin
             value <= 1;
           end else begin
             value <= {{32{1'b0}}, port_in};
           end
         end
+
+
+        // 2: begin
+        //   state <= 4;
+        //   // available <= 1;
+        // end
+
+
+        // 4: begin
+        //   state <= 3;
+        //   available <= 1;
+        // end
+
 
         // 2: begin
         //   state <= 3;
