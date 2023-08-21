@@ -3,6 +3,7 @@
 `include "regfile.sv"
 `include "ram.sv"
 `include "core.sv"
+`include "lights.sv"
 
 module Clock_divider (
     clock_in,
@@ -10,11 +11,11 @@ module Clock_divider (
 );
   input clock_in;  // input clock on FPGA
   output reg clock_out;  // output clock after dividing the input clock by divisor
-  reg [3:0] counter = 4'd0;
-  parameter DIVISOR = 4'd10;
+  reg [4:0] counter = 5'd0;
+  parameter DIVISOR = 5'd10;
   always @(posedge clock_in) begin
     counter <= counter + 4'd1;
-    if (counter >= (DIVISOR - 1)) counter <= 4'd0;
+    if (counter >= (DIVISOR - 1)) counter <= 5'd0;
     clock_out <= (counter < DIVISOR / 2) ? 1'b1 : 1'b0;
   end
 endmodule
@@ -52,12 +53,11 @@ module blackice (
 
 
   assign PMOD[43:0] = {44{1'bz}};
-  assign PMOD[44] = 1;
+  // assign PMOD[44] = 1;
   assign PMOD[45] = 0;
   assign PMOD[46] = 0;
   assign PMOD[47] = 0;
   assign PMOD[54:48] = {7{1'bz}};
-
 
   //   assign PMOD[52] = B2;
 
@@ -144,8 +144,15 @@ module blackice (
       .a_write(m_a_write),
       .a_sel  (m_a_sel),
       .a_rdata(m_a_rdata),
-      .a_wdata(m_a_wdata)
+      .a_wdata(m_a_wdata),
 
+      .c_adr  (m_c_adr),
+      .c_req  (m_c_req),
+      .c_ack  (m_c_ack),
+      .c_write(m_c_write),
+      .c_sel  (m_c_sel),
+      .c_rdata(m_c_rdata),
+      .c_wdata(m_c_wdata)
   );
 
 
@@ -162,11 +169,19 @@ module blackice (
   reg [15:0] m_a_rdata;
   reg [15:0] m_a_wdata;
 
-//   assign m_a_adr = 0;
-//   assign m_a_req = 0;
-//   assign m_a_write = 0;
-//   assign m_a_wdata = 0;
-//   assign m_a_sel = 0;
+  reg [17:0] m_c_adr;
+  reg m_c_req;
+  reg m_c_ack;
+  reg m_c_write;
+  reg [1:0] m_c_sel;
+  reg [15:0] m_c_rdata;
+  reg [15:0] m_c_wdata;
+
+  //   assign m_a_adr = 0;
+  //   assign m_a_req = 0;
+  //   assign m_a_write = 0;
+  //   assign m_a_wdata = 0;
+  //   assign m_a_sel = 0;
 
   core core_inst (
       .rst(rst),
@@ -190,6 +205,20 @@ module blackice (
       .m_a_sel  (m_a_sel),
       .m_a_rdata(m_a_rdata),
       .m_a_wdata(m_a_wdata)
+  );
+
+  lights_controller lights_controller_inst (
+      .clk(clk),
+      .rst(rst),
+      .ctrl_out(PMOD[44]),
+
+      .m_a_adr  (m_c_adr),
+      .m_a_req  (m_c_req),
+      .m_a_ack  (m_c_ack),
+      .m_a_write(m_c_write),
+      .m_a_sel  (m_c_sel),
+      .m_a_rdata(m_c_rdata),
+      .m_a_wdata(m_c_wdata)
   );
 
 endmodule

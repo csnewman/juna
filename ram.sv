@@ -27,9 +27,15 @@ module ram (
     input a_write,
     input [1:0] a_sel,
     output [15:0] a_rdata,
-    input [15:0] a_wdata
+    input [15:0] a_wdata,
 
-
+    input [17:0] c_adr,
+    input c_req,
+    output c_ack,
+    input c_write,
+    input [1:0] c_sel,
+    output [15:0] c_rdata,
+    input [15:0] c_wdata
 );
 
   reg [17:0] b_adr;
@@ -56,6 +62,7 @@ module ram (
   assign DAT = isout ? outdata : 'z;
   assign a_rdata = DAT;
   assign b_rdata = DAT;
+  assign c_rdata = DAT;
 
   reg [2:0] state;
 
@@ -78,24 +85,32 @@ module ram (
       .a_wdata(b_wdata)
   );
 
-  reg next_a;
-  reg next_b;
+  // reg next_a;
+  // reg next_b;
 
   always @(posedge clk) begin
     a_ack <= 0;
     b_ack <= 0;
+    c_ack <= 0;
 
     if (rst) begin
       state <= `RAM_STATE_IDLE;
       isout <= 0;
       a_ack <= 0;
       b_ack <= 0;
+      c_ack <= 0;
     end else begin
       case (state)
         `RAM_STATE_IDLE: begin
           isout <= 0;
 
-          if (a_req && !b_req) begin
+          if (c_req) begin
+            ADR <= c_adr;
+            bytesel <= c_sel;
+            outdata <= c_wdata;
+            isout <= c_write;
+            c_ack <= 1;
+          end else if (a_req && !b_req) begin
             ADR <= a_adr;
             bytesel <= a_sel;
             outdata <= a_wdata;
