@@ -41,8 +41,13 @@ module core (
       .bus_start(debug_bus_start),
       .bus_data(debug_bus_data),
       .bus_available(debug_bus_available),
-      .bus_accepted(debug_bus_accepted)
+      .bus_accepted(debug_bus_accepted),
+      .hlt_req(hlt_req),
+      .hlt_state(hlt_state)
   );
+
+  reg hlt_state;
+  wire hlt_req;
 
   reg  [ 3:0] state;
 
@@ -73,7 +78,13 @@ module core (
         `STATE_FETCH0: begin
           r_a_addr <= 15;
           r_a_write <= 0;
-          state <= `STATE_FETCH1;
+
+          if (hlt_req) begin
+            hlt_state <= 1;
+          end else begin
+            hlt_state <= 0;
+            state <= `STATE_FETCH1;
+          end
         end
         `STATE_FETCH1: begin
           r_a_addr <= 15;
@@ -332,14 +343,17 @@ module debug_core (
     input bus_start,
     inout [63:0] bus_data,
     output bus_available,
-    output bus_accepted
+    output bus_accepted,
 
+    output reg hlt_req,
+    input  hlt_state
 );
 
   reg [3:0] state;
   reg accepted;
   reg available;
   reg [63:0] value;
+  reg [63:0] request;
 
   assign bus_data = bus_addr == 3 && state != 0 ? value : 'z;
   assign bus_available = bus_addr == 3 ? available : 'z;
@@ -352,41 +366,70 @@ module debug_core (
       accepted <= 0;
       available <= 0;
       value <= 0;
-
-
+      hlt_req <= 1;
     end else begin
       case (state)
         0: begin
           accepted  <= 0;
           available <= 0;
 
-          // && ram_ready
           if (bus_addr == 3 && bus_start) begin
             accepted <= 1;
             state <= 1;
+            request <= bus_data;
 
+            case (bus_data[7:0])
+              8'd0: begin  // State
+                // Nothing
+              end
+              8'd1: begin  // Halt
+                hlt_req <= 1;
+              end
+              8'd2: begin  // Resume
+                hlt_req <= 0;
+              end
+              default: begin
+                // TODO
+              end
+            endcase
           end
         end
         1: begin
           accepted <= 0;
-
-          available <= 1;
-          state <= 2;
-          value <= 2;
+          case (request[7:0])
+            8'd0: begin  // Halt
+              available <= 1;
+              state <= 2;
+              value <= {{63{1'b0}}, hlt_state};
+            end
+            8'd1: begin  // Halt
+              if (hlt_state) begin
+                available <= 1;
+                state <= 2;
+                value <= 1;
+              end
+            end
+            8'd2: begin  // Resume
+              if (!hlt_state) begin
+                available <= 1;
+                state <= 2;
+                value <= 1;
+              end
+            end
+            default: begin
+              // TODO
+            end
+          endcase
         end
-
         2: begin
           available <= 0;
           state <= 0;
         end
-
-
         default: begin
           //   state <= 'z;
           //   accepted <= 'z;
           //   available <= 'z;
         end
-
       endcase
     end
   end
