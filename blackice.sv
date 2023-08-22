@@ -69,12 +69,26 @@ module blackice (
       .clock_out(clk)
   );
 
+  wire rst_but;
   wire rst;
+  reg rst_once;
+
+  assign rst = rst_once ? rst_but : 1;
+
+  initial begin
+    rst_once = 0;
+  end
+
+  always @(posedge clk) begin
+    if (rst) begin
+        rst_once <= 1;
+    end
+  end
 
   debounce db_rst (
       .clk(clk),
       .button(B2),
-      .state(rst)
+      .state(rst_but)
   );
 
   wire [7:0] debug_bus_addr;
