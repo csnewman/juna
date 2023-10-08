@@ -14,9 +14,9 @@
     r8 => 0x8
     r9 => 0x9
     r10 => 0xA
+    r11 => 0xB
 
     ; Reserved for helper instructions
-    i3 => 0xB
     i2 => 0xC
     i1 => 0xD
 
@@ -63,119 +63,77 @@
     ldc {d: register}, {value} => {
         assert(value >= 0)
         assert(value <= 0xffff)
-        
+
         asm {
-            lcb i1, 0x8
-
-            lcb {d}, {value}[15:8]
-            shf {d}, {d}, i1
-
-            lcb i2, {value}[7:0]
-            orr {d}, {d}, i2
-        }
-    }
-    ldc {d: register}, {value} => {
-        assert(value >= 0)
-        assert(value <= 0xffffff)
-        
-        asm {
-            lcb i1, 0x8
-
-            lcb {d}, {value}[23:16]
-            shf {d}, {d}, i1
-
-            lcb i2, {value}[15:8]
-            orr {d}, {d}, i2
-            shf {d}, {d}, i1
-
-            lcb i2, {value}[7:0]
-            orr {d}, {d}, i2
-        }
+            lds {d}, pc
+        } @ {value}[7:0] @ {value}[15:8]
     }
     ldc {d: register}, {value} => {
         assert(value >= 0)
         assert(value <= 0xffffffff)
-        
+
         asm {
-            lcb i1, 0x8
-
-            lcb {d}, {value}[31:24]
-            shf {d}, {d}, i1
-
-            lcb i2, {value}[23:16]
-            orr {d}, {d}, i2
-            shf {d}, {d}, i1
-
-            lcb i2, {value}[15:8]
-            orr {d}, {d}, i2
-            shf {d}, {d}, i1
-
-            lcb i2, {value}[7:0]
-            orr {d}, {d}, i2
-        }
+            ldw {d}, pc
+        } @ {value}[7:0] @ {value}[15:8] @ {value}[23:16] @ {value}[31:24]
     }
 
     ; Jump to address
-    jmp {d} => asm {
-        ldc i3, {d}
-        brn i3
-    }
+    jmp {d} => asm { ldc pc, {d} }
     jeq {d}, {a: register}, {b: register} => asm {
-        ldc i3, {d}
-        beq i3, {a}, {b}
+        ldc i1, {d}
+        beq i1, {a}, {b}
     }
     ; jne {d}, {a: register}, {b: register} => asm {
-    ;     ldc i3, {d}
-    ;     bne i3, {a}, {b}
+    ;     ldc i1, {d}
+    ;     bne i1, {a}, {b}
     ; }
     jlt {d}, {a: register}, {b: register} => asm {
-        ldc i3, {d}
-        blt i3, {a}, {b}
+        ldc i1, {d}
+        blt i1, {a}, {b}
     }
     jle {d}, {a: register}, {b: register} => asm {
-        ldc i3, {d}
-        ble i3, {a}, {b}
+        ldc i1, {d}
+        ble i1, {a}, {b}
     }
     jlts {d}, {a: register}, {b: register} => asm {
-        ldc i3, {d}
-        blts i3, {a}, {b}
+        ldc i1, {d}
+        blts i1, {a}, {b}
     }
 
     ; Stack ops
     pushb {r: register} => asm {
-        lcb i3, 1
-        sub sp, sp, i3
+        lcb i1, 1
+        sub sp, sp, i1
         stb {r}, sp
     }
     popb {r: register} => asm {
         ldb {r}, sp
-        lcb i3, 1
-        add sp, sp, i3
+        lcb i1, 1
+        add sp, sp, i1
     }
     pushs {r: register} => asm {
-        lcb i3, 2
-        sub sp, sp, i3
+        lcb i1, 2
+        sub sp, sp, i1
         sts {r}, sp
     }
     pops {r: register} => asm {
         lds {r}, sp
-        lcb i3, 2
-        add sp, sp, i3
+        lcb i1, 2
+        add sp, sp, i1
     }
     pushw {r: register} => asm {
-        lcb i3, 4
-        sub sp, sp, i3
+        lcb i1, 4
+        sub sp, sp, i1
         stw {r}, sp
     }
     popw {r: register} => asm {
         ldw {r}, sp
-        lcb i3, 4
-        add sp, sp, i3
+        lcb i1, 4
+        add sp, sp, i1
     }
 
     ; Function calls
     call {d} => asm {
-        ldc i3, {d}
 
         lcb i1, 4
         lcb i2, 6      ; Offset from add to after brn
@@ -184,18 +142,17 @@
         sub sp, sp, i1
         stw i2, sp
 
-        brn i3
+        jmp {d}
     }
     ret => asm {
         ldw i2, sp
-        lcb i3, 4
-        add sp, sp, i3
+        lcb i1, 4
+        add sp, sp, i1
         brn i2
     }
 
     ; Busy loop
     hlt => asm {
-        ldc i3, $
-        brn i3
+        ldc pc, $
     }
 }
