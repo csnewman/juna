@@ -48,6 +48,10 @@
     lcb {d: register}, {value: u8} => {value}[3:0] @ d @ 0b1010 @ {value}[7:4]
     ldb {d: register}, {a: register} => a @ d @ 0b1111 @ 0b0000
     stb {d: register}, {a: register} => a @ d @ 0b1111 @ 0b0001
+    lds {d: register}, {a: register} => a @ d @ 0b1111 @ 0b0010
+    sts {d: register}, {a: register} => a @ d @ 0b1111 @ 0b0011
+    ldw {d: register}, {a: register} => a @ d @ 0b1111 @ 0b0100
+    stw {d: register}, {a: register} => a @ d @ 0b1111 @ 0b0101
 
     ldc {d: register}, {value} => {
         assert(value >= 0)

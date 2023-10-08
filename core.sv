@@ -64,6 +64,11 @@ module core (
   assign reg_a_signed = reg_a;
   assign r_a_rdata_signed = r_a_rdata;
 
+  reg [1:0] mem_op_left;
+  reg mem_offset;
+  reg mem_single;
+
+
   always @(posedge clk) begin
     if (rst) begin
       //   state <= `STATE_STOPPED;
@@ -232,34 +237,129 @@ module core (
               end
             end
 
-            8'b1111_0000: begin  // LDB
-              m_a_adr <= r_a_rdata[18:1];
+            8'b1111_0xx0: begin  // LD
+              // TODO: Handle port version
+
+              // Mem address
               m_a_req <= 1;
               m_a_write <= 0;
-              m_a_sel <= r_a_rdata[0] ? 2'b10 : 2'b01;
-              state <= `STATE_EXEC3;
-            end
+              m_a_sel   <= 2'b11;
 
-            8'b1111_0001: begin  // STB
-              m_a_adr   <= r_a_rdata[18:1];
-              m_a_req   <= 1;
-              m_a_write <= 1;
+              // Init loaded value to zero
+              r_a_wdata <= 0;
+
+              mem_offset <= 0;
+              mem_single <= 0;
 
               if (r_a_rdata[0]) begin
-                m_a_sel   <= 2'b10;
-                m_a_wdata <= {reg_a[7:0], {8{1'b0}}};
+                mem_single <= 1;
+
+                case (instruction[10:9])
+                  2'b00: begin
+                    mem_op_left <= 0;
+                    m_a_adr <= r_a_rdata[18:1];
+                    mem_offset <= 1;
+                  end
+                  2'b01: begin
+                    mem_op_left <= 1;
+
+                    reg_b <= r_a_rdata[18:1]; // Next addr
+                    m_a_adr <= r_a_rdata[18:1] + 1;
+                  end
+                  2'b10: begin
+                    mem_op_left <= 3;
+
+                    reg_b <= r_a_rdata[18:1] + 1; // Next addr
+                    m_a_adr <= r_a_rdata[18:1] + 2;
+                  end
+                  default: begin
+                    mem_op_left <= 0;
+                  end
+                endcase
               end else begin
-                m_a_sel   <= 2'b01;
-                m_a_wdata <= {{8{1'b0}}, reg_a[7:0]};
+
+                case (instruction[10:9])
+                2'b00: begin
+                  mem_op_left <= 0;
+                  mem_single <= 1;
+                  m_a_adr <= r_a_rdata[18:1];
+                end
+                2'b01: begin
+                  mem_op_left <= 0;
+                  m_a_adr <= r_a_rdata[18:1];
+                end
+                2'b10: begin
+                  mem_op_left <= 2;
+                  reg_b <= r_a_rdata[18:1]; // Next addr
+                  m_a_adr <= r_a_rdata[18:1] + 1;
+                end
+                default: begin
+                  mem_op_left <= 0;
+                end
+              endcase
               end
 
               state <= `STATE_EXEC3;
             end
 
-            // 8'b1111_xxx0: begin  // Memory read
-            // end
-            // 8'b1111_xxx1: begin  // Memory write
-            // end
+            8'b1111_0xx1: begin  // ST
+              // TODO: Handle port version
+
+              // Mem address
+              reg_b <= r_a_rdata[18:1] + 1;
+              m_a_adr <= r_a_rdata[18:1];
+              m_a_req <= 1;
+              m_a_write <= 1;
+
+              if (r_a_rdata[0]) begin
+                m_a_sel   <= 2'b10;
+                m_a_wdata <= {reg_a[7:0], {8{1'b0}}};
+                reg_a <= {{8{1'b0}}, reg_a[31:8]};
+                mem_single <= 1;
+                mem_offset <= 1;
+
+                case (instruction[10:9])
+                  2'b00: begin
+                    mem_op_left <= 0;
+                  end
+                  2'b01: begin
+                    mem_op_left <= 1;
+                  end
+                  2'b10: begin
+                    mem_op_left <= 3;
+                  end
+                  default: begin
+                    mem_op_left <= 0;
+                  end
+                endcase
+              end else begin
+                mem_offset <= 0;
+                mem_single <= 0;
+                reg_a <= {{16{1'b0}}, reg_a[31:16]};
+                m_a_wdata <= reg_a[15:0];
+
+                case (instruction[10:9])
+                2'b00: begin
+                  mem_op_left <= 0;
+                  mem_single <= 1;
+                  m_a_sel   <= 2'b01;
+                end
+                2'b01: begin
+                  mem_op_left <= 0;
+                  m_a_sel   <= 2'b11;
+                end
+                2'b10: begin
+                  mem_op_left <= 2;
+                  m_a_sel   <= 2'b11;
+                end
+                default: begin
+                  mem_op_left <= 0;
+                end
+              endcase
+              end
+
+              state <= `STATE_EXEC3;
+            end
 
             default: begin
               // TODO
@@ -282,38 +382,89 @@ module core (
           if (m_a_ack) begin
             m_a_req <= 0;
             m_a_write <= 0;
+            mem_offset <= 0;
+            mem_single <= 0;
 
 
-            case (instruction[15:8])
-              8'b1111_0000: begin  // LDB
+            if (instruction[8]) begin // Store
+              reg_a <= {{16{1'b0}}, reg_a[31:16]};
+              m_a_wdata <= reg_a[15:0];
+
+              reg_b <= reg_b + 1;
+
+              case (mem_op_left)
+              2'd0: begin
+                // Done
+                state <= `STATE_FETCH0;
+              end
+              2'd1: begin
+                m_a_sel   <= 2'b01;
+                mem_single <= 1;
+                m_a_write <= 1;
+                m_a_adr <= reg_b;
+                m_a_req <= 1;
+                mem_op_left <= 0;
+
+              end
+              2'd2: begin
+                m_a_sel   <= 2'b11;
+                m_a_write <= 1;
+                m_a_adr <= reg_b;
+                m_a_req <= 1;
+                mem_op_left <= 0;
+              end
+              2'd3: begin
+                m_a_sel   <= 2'b11;
+                m_a_write <= 1;
+                m_a_adr <= reg_b;
+                m_a_req <= 1;
+                mem_op_left <= 1;
+              end
+              default: begin
+
+              end
+              endcase
+
+            end else begin // Load
+              if (mem_offset) begin
+                r_a_wdata <= {r_a_wdata[23:0], m_a_rdata[15:8]};
+              end else if (mem_single) begin
+                r_a_wdata <= {r_a_wdata[23:0], m_a_rdata[7:0]};
+              end else begin
+                r_a_wdata <= {r_a_wdata[15:0], m_a_rdata[15:0]};
+              end
+
+              reg_b <= reg_b - 1;
+
+              case (mem_op_left)
+              2'd0: begin
+                // Done
                 r_a_addr  <= instruction[3:0];
                 r_a_write <= 1;
-
-                if (reg_b[0]) begin
-                  r_a_wdata <= {{24{1'b0}}, m_a_rdata[15:8]};
-                end else begin
-                  r_a_wdata <= {{24{1'b0}}, m_a_rdata[7:0]};
-                end
-
                 state <= `STATE_FETCH0;
               end
-
-              8'b1111_0001: begin  // LDB
-                state <= `STATE_FETCH0;
+              2'd1: begin
+                mem_single <= 1;
+                mem_offset <= 1;
+                m_a_adr <= reg_b;
+                m_a_req <= 1;
+                mem_op_left <= 0;
               end
-
-              // 8'b1111_xxx0: begin  // Memory read
-              // end
-              // 8'b1111_xxx1: begin  // Memory write
-              // end
-
+              2'd2: begin
+                m_a_adr <= reg_b;
+                m_a_req <= 1;
+                mem_op_left <= 0;
+              end
+              2'd3: begin
+                m_a_adr <= reg_b;
+                m_a_req <= 1;
+                mem_op_left <= 1;
+              end
               default: begin
-                // TODO
-                // r_a_addr <= m_a_rdata[3:0];
-                // state <= `STATE_DECODE2;
-              end
-            endcase
 
+              end
+              endcase
+            end
           end
         end
 

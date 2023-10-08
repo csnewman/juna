@@ -104,25 +104,25 @@ module ram (
         `RAM_STATE_IDLE: begin
           isout <= 0;
 
-          if (c_req) begin
+          if (c_req && !c_ack) begin
             ADR <= c_adr;
             bytesel <= c_sel;
             outdata <= c_wdata;
             isout <= c_write;
             c_ack <= 1;
-          end else if (a_req && !b_req) begin
-            ADR <= a_adr;
-            bytesel <= a_sel;
-            outdata <= a_wdata;
-            isout <= a_write;
-            a_ack <= 1;
-            // state <= `RAM_STATE_BUSY1;
-          end else if (b_req) begin
+          end else if (b_req && !b_ack) begin
             ADR <= b_adr;
             bytesel <= b_sel;
             outdata <= b_wdata;
             isout <= b_write;
             b_ack <= 1;
+            // state <= `RAM_STATE_BUSY1;
+          end else if (a_req && !a_ack) begin
+            ADR <= a_adr;
+            bytesel <= a_sel;
+            outdata <= a_wdata;
+            isout <= a_write;
+            a_ack <= 1;
             // state <= `RAM_STATE_BUSY1;
           end
 
