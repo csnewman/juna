@@ -52,6 +52,7 @@ module core (
   reg  [ 3:0] state;
 
   wire [18:0] next_pc = r_a_rdata[18:0] + 18'd2;
+  reg  [18:0] next_pc_r;
 
   reg  [15:0] instruction;
   reg  [31:0] reg_a;
@@ -67,6 +68,7 @@ module core (
   reg [1:0] mem_op_left;
   reg mem_offset;
   reg mem_single;
+  reg [31:0] mem_op_data;
 
 
   always @(posedge clk) begin
@@ -101,6 +103,7 @@ module core (
           r_a_addr <= 15;
           r_a_write <= 1;
           r_a_wdata <= {{13{1'b0}}, next_pc};
+          next_pc_r <= next_pc;
 
           m_a_adr <= r_a_rdata[18:1];
           m_a_req <= 1;
@@ -246,7 +249,7 @@ module core (
               m_a_sel   <= 2'b11;
 
               // Init loaded value to zero
-              r_a_wdata <= 0;
+              mem_op_data <= 0;
 
               mem_offset <= 0;
               mem_single <= 0;
@@ -279,24 +282,44 @@ module core (
               end else begin
 
                 case (instruction[10:9])
-                2'b00: begin
-                  mem_op_left <= 0;
-                  mem_single <= 1;
-                  m_a_adr <= r_a_rdata[18:1];
-                end
-                2'b01: begin
-                  mem_op_left <= 0;
-                  m_a_adr <= r_a_rdata[18:1];
-                end
-                2'b10: begin
-                  mem_op_left <= 2;
-                  reg_b <= r_a_rdata[18:1]; // Next addr
-                  m_a_adr <= r_a_rdata[18:1] + 1;
-                end
-                default: begin
-                  mem_op_left <= 0;
-                end
-              endcase
+                  2'b00: begin
+                    mem_op_left <= 0;
+                    mem_single <= 1;
+                    m_a_adr <= r_a_rdata[18:1];
+                  end
+                  2'b01: begin
+                    mem_op_left <= 0;
+                    m_a_adr <= r_a_rdata[18:1];
+                  end
+                  2'b10: begin
+                    mem_op_left <= 2;
+                    reg_b <= r_a_rdata[18:1]; // Next addr
+                    m_a_adr <= r_a_rdata[18:1] + 1;
+                  end
+                  default: begin
+                    mem_op_left <= 0;
+                  end
+                endcase
+              end
+
+
+              if (instruction[7:4] == 15) begin
+                r_a_addr <= 15;
+                r_a_write <= 1;
+
+                case (instruction[10:9])
+                  2'b00: begin
+                    r_a_wdata <= {{13{1'b0}}, next_pc_r + 2};
+                  end
+                  2'b01: begin
+                    r_a_wdata <= {{13{1'b0}}, next_pc_r + 2};
+                  end
+                  2'b10: begin
+                    r_a_wdata <= {{13{1'b0}}, next_pc_r + 4};
+                  end
+                  default: begin
+                  end
+                endcase
               end
 
               state <= `STATE_EXEC3;
@@ -358,6 +381,25 @@ module core (
               endcase
               end
 
+              if (instruction[7:4] == 15) begin
+                r_a_addr <= 15;
+                r_a_write <= 1;
+
+                case (instruction[10:9])
+                  2'b00: begin
+                    r_a_wdata <= {{13{1'b0}}, next_pc_r + 2};
+                  end
+                  2'b01: begin
+                    r_a_wdata <= {{13{1'b0}}, next_pc_r + 2};
+                  end
+                  2'b10: begin
+                    r_a_wdata <= {{13{1'b0}}, next_pc_r + 4};
+                  end
+                  default: begin
+                  end
+                endcase
+              end
+
               state <= `STATE_EXEC3;
             end
 
@@ -379,6 +421,8 @@ module core (
         end
 
         `STATE_EXEC3: begin
+          r_a_write <= 0;
+
           if (m_a_ack) begin
             m_a_req <= 0;
             m_a_write <= 0;
@@ -427,11 +471,14 @@ module core (
 
             end else begin // Load
               if (mem_offset) begin
-                r_a_wdata <= {r_a_wdata[23:0], m_a_rdata[15:8]};
+                mem_op_data <= {mem_op_data[23:0], m_a_rdata[15:8]};
+                r_a_wdata <= {mem_op_data[23:0], m_a_rdata[15:8]};
               end else if (mem_single) begin
-                r_a_wdata <= {r_a_wdata[23:0], m_a_rdata[7:0]};
+                mem_op_data <= {mem_op_data[23:0], m_a_rdata[7:0]};
+                r_a_wdata <= {mem_op_data[23:0], m_a_rdata[7:0]};
               end else begin
-                r_a_wdata <= {r_a_wdata[15:0], m_a_rdata[15:0]};
+                mem_op_data <= {mem_op_data[15:0], m_a_rdata[15:0]};
+                r_a_wdata <= {mem_op_data[15:0], m_a_rdata[15:0]};
               end
 
               reg_b <= reg_b - 1;
