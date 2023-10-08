@@ -58,6 +58,12 @@ module core (
   reg  [31:0] reg_b;
   // reg  [31:0] reg_d;
 
+  wire signed [31:0] reg_a_signed;
+  wire signed [31:0] r_a_rdata_signed;
+
+  assign reg_a_signed = reg_a;
+  assign r_a_rdata_signed = r_a_rdata;
+
   always @(posedge clk) begin
     if (rst) begin
       //   state <= `STATE_STOPPED;
@@ -201,15 +207,7 @@ module core (
                 state <= `STATE_FETCH0;
               end
             end
-            8'b1100_xxxx: begin  // BNE
-              if (reg_a != r_a_rdata) begin
-                r_a_addr <= instruction[3:0];
-                state <= `STATE_EXEC2;
-              end else begin
-                state <= `STATE_FETCH0;
-              end
-            end
-            8'b1101_xxxx: begin  // BLT
+            8'b1100_xxxx: begin  // BLT
               if (reg_a < r_a_rdata) begin
                 r_a_addr <= instruction[3:0];
                 state <= `STATE_EXEC2;
@@ -217,8 +215,16 @@ module core (
                 state <= `STATE_FETCH0;
               end
             end
-            8'b1110_xxxx: begin  // BLE
+            8'b1101_xxxx: begin  // BLE
               if (reg_a <= r_a_rdata) begin
+                r_a_addr <= instruction[3:0];
+                state <= `STATE_EXEC2;
+              end else begin
+                state <= `STATE_FETCH0;
+              end
+            end
+             8'b1110_xxxx: begin  // BLTS
+              if (reg_a_signed < r_a_rdata_signed) begin
                 r_a_addr <= instruction[3:0];
                 state <= `STATE_EXEC2;
               end else begin

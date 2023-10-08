@@ -27,7 +27,8 @@
 
 #ruledef
 {
-    nop => asm { add r0, r0, r0 }
+    nop => asm { and r0, r0, r0 }
+    mov {d: register}, {a: register} => asm { and {d}, {a}, {a} }
     add {d: register}, {a: register}, {b: register} => b @ d @ 0b0000 @ a
     sub {d: register}, {a: register}, {b: register} => b @ d @ 0b0001 @ a
     xor {d: register}, {a: register}, {b: register} => b @ d @ 0b0010 @ a
@@ -39,6 +40,10 @@
 
     brn {d: register} => asm { beq {d}, r0, r0 }
     beq {d: register}, {a: register}, {b: register} => b @ d @ 0b1011 @ a
+    ; bne {d: register}, {a: register}, {b: register} => b @ d @ 0b1100 @ a
+    blt {d: register}, {a: register}, {b: register} => b @ d @ 0b1100 @ a
+    ble {d: register}, {a: register}, {b: register} => b @ d @ 0b1101 @ a
+    blts {d: register}, {a: register}, {b: register} => b @ d @ 0b1110 @ a
 
     lcb {d: register}, {value: u8} => {value}[3:0] @ d @ 0b1010 @ {value}[7:4]
     ldb {d: register}, {a: register} => a @ d @ 0b1111 @ 0b0000
@@ -114,6 +119,22 @@
     jeq {d}, {a: register}, {b: register} => asm {
         ldc i3, {d}
         beq i3, {a}, {b}
+    }
+    ; jne {d}, {a: register}, {b: register} => asm {
+    ;     ldc i3, {d}
+    ;     bne i3, {a}, {b}
+    ; }
+    jlt {d}, {a: register}, {b: register} => asm {
+        ldc i3, {d}
+        blt i3, {a}, {b}
+    }
+    jle {d}, {a: register}, {b: register} => asm {
+        ldc i3, {d}
+        ble i3, {a}, {b}
+    }
+    jlts {d}, {a: register}, {b: register} => asm {
+        ldc i3, {d}
+        blts i3, {a}, {b}
     }
 
     ; Busy loop
