@@ -141,6 +141,58 @@
         blts i3, {a}, {b}
     }
 
+    ; Stack ops
+    pushb {r: register} => asm {
+        lcb i3, 1
+        sub sp, sp, i3
+        stb {r}, sp
+    }
+    popb {r: register} => asm {
+        ldb {r}, sp
+        lcb i3, 1
+        add sp, sp, i3
+    }
+    pushs {r: register} => asm {
+        lcb i3, 2
+        sub sp, sp, i3
+        sts {r}, sp
+    }
+    pops {r: register} => asm {
+        lds {r}, sp
+        lcb i3, 2
+        add sp, sp, i3
+    }
+    pushw {r: register} => asm {
+        lcb i3, 4
+        sub sp, sp, i3
+        stw {r}, sp
+    }
+    popw {r: register} => asm {
+        ldw {r}, sp
+        lcb i3, 4
+        add sp, sp, i3
+    }
+
+    ; Function calls
+    call {d} => asm {
+        ldc i3, {d}
+
+        lcb i1, 4
+        lcb i2, 6      ; Offset from add to after brn
+
+        add i2, i2, pc
+        sub sp, sp, i1
+        stw i2, sp
+
+        brn i3
+    }
+    ret => asm {
+        ldw i2, sp
+        lcb i3, 4
+        add sp, sp, i3
+        brn i2
+    }
+
     ; Busy loop
     hlt => asm {
         ldc i3, $
