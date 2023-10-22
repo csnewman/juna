@@ -13,15 +13,25 @@ module lights_controller (
     output m_a_write,
     output [1:0] m_a_sel,
     input [15:0] m_a_rdata,
-    output [15:0] m_a_wdata
+    output [15:0] m_a_wdata,
+
+    input [7:0] port_addr,
+    input port_req,
+    output port_ack,
+    output [31:0] port_rdata,
+    input [31:0] port_wdata
 );
 
   assign m_a_write = 0;
   assign m_a_sel   = 2'b11;
   assign m_a_wdata = 'z;
 
-  //   reg out_value;
-
+  wire port_sel;
+  assign port_sel = port_addr == 8'd1;
+  reg [31:0] port_rdata_value;
+  assign port_rdata = port_sel ? port_rdata_value : 'z;
+  reg port_ack_value;
+  assign port_ack = port_sel ? port_ack_value : 'z;
 
   reg [4:0] time_count;
   reg [4:0] bits;
@@ -33,6 +43,9 @@ module lights_controller (
 
   reg [2:0] state;
 
+  reg [17:0] next_base;
+  reg next_avail;
+
   always @(posedge clk) begin
     if (rst) begin
       bits <= 0;
@@ -42,18 +55,35 @@ module lights_controller (
       state <= `STATE_IDLE;
       m_a_req <= 0;
       time_count <= 0;
+      next_base <= 0;
+      next_avail <= 0;
+      port_ack_value <= 0;
+      port_rdata_value <= 0;
     end else begin
+      port_ack_value <= 0;
+
+      if (port_req) begin
+        next_base <= port_wdata[18:1];
+        port_rdata_value <= port_wdata;
+        next_avail <= 1;
+      end
+
       case (state)
         `STATE_IDLE: begin
           ctrl_out <= 0;
           m_a_req <= 0;
           m_a_adr <= 0;
 
-          state <= `STATE_START;
+          if (next_avail) begin
+            state <= `STATE_START;
+            m_a_adr <= next_base;
+            port_ack_value <= 1;
+          end
+
         end
         `STATE_START: begin
           ctrl_out <= 0;
-          m_a_adr  <= 500;  // BASE
+          // m_a_adr  <= 500;  // BASE
           m_a_req  <= 1;
 
           if (m_a_ack) begin
@@ -65,6 +95,7 @@ module lights_controller (
             bits <= 0;
             time_count <= 0;
             out_data <= m_a_rdata;
+            // next_out_data <= 16'b1111111111111111;
             state <= `STATE_ACT;
           end
         end
@@ -95,6 +126,8 @@ module lights_controller (
               if (pos < 299) begin
                 if (pos[0]) begin
                   out_data <= next_out_data;
+                  // next_out_data <= 16'b1111111111111111;
+
                   m_a_req  <= 1;
                   m_a_adr  <= m_a_adr + 1;  // BASE
                 end

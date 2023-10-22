@@ -197,6 +197,12 @@ module blackice (
   //   assign m_a_wdata = 0;
   //   assign m_a_sel = 0;
 
+  reg [7:0] port_addr;
+  reg port_req;
+  reg port_ack;
+  reg [31:0] port_rdata;
+  reg [31:0] port_wdata;
+
   core core_inst (
       .rst(rst),
       .clk(clk),
@@ -218,7 +224,13 @@ module blackice (
       .m_a_write(m_a_write),
       .m_a_sel  (m_a_sel),
       .m_a_rdata(m_a_rdata),
-      .m_a_wdata(m_a_wdata)
+      .m_a_wdata(m_a_wdata),
+
+      .port_addr(port_addr),
+      .port_req(port_req),
+      .port_ack(port_ack),
+      .port_rdata(port_rdata),
+      .port_wdata(port_wdata)
   );
 
   lights_controller lights_controller_inst (
@@ -232,7 +244,13 @@ module blackice (
       .m_a_write(m_c_write),
       .m_a_sel  (m_c_sel),
       .m_a_rdata(m_c_rdata),
-      .m_a_wdata(m_c_wdata)
+      .m_a_wdata(m_c_wdata),
+
+      .port_addr(port_addr),
+      .port_req(port_req),
+      .port_ack(port_ack),
+      .port_rdata(port_rdata),
+      .port_wdata(port_wdata)
   );
 
 endmodule

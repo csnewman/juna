@@ -9,6 +9,7 @@
 `define STATE_EXEC2 4'd7
 `define STATE_EXEC3 4'd8
 `define STATE_EXEC4 4'd9
+`define STATE_EXEC5 4'd10
 
 module core (
     input rst,
@@ -31,7 +32,13 @@ module core (
     output reg m_a_write,
     output [1:0] m_a_sel,
     input [15:0] m_a_rdata,
-    output [15:0] m_a_wdata
+    output [15:0] m_a_wdata,
+
+    output reg [7:0] port_addr,
+    output reg port_req,
+    input port_ack,
+    input [31:0] port_rdata,
+    output [31:0] port_wdata
 );
 
   debug_core debug_core_inst (
@@ -80,6 +87,9 @@ module core (
       m_a_req <= 0;
       m_a_write <= 0;
       m_a_sel <= 2'b11;
+
+      port_addr <= 0;
+      port_req <= 0;
     end else begin
       case (state)
         `STATE_STOPPED: begin
@@ -132,16 +142,16 @@ module core (
                 state <= `STATE_FETCH0;
               end
 
+              8'b1111_xxx1, 8'b1111_0110: begin  // Memory write
+                // Load D (into a)
+                r_a_addr <= m_a_rdata[3:0];
+                state <= `STATE_DECODE3;
+              end
+
               8'b1111_xxx0: begin  // Memory read
                 // Skip A
                 r_a_addr <= m_a_rdata[7:4];
                 state <= `STATE_EXEC1;
-              end
-
-              8'b1111_xxx1: begin  // Memory write
-                // Load D (into a)
-                r_a_addr <= m_a_rdata[3:0];
-                state <= `STATE_DECODE3;
               end
 
               default: begin
@@ -173,7 +183,7 @@ module core (
           reg_b <= r_a_rdata;
 
 
-          casex (instruction[15:8])
+          priority casex (instruction[15:8])
             8'b0000_xxxx: begin : AND_INST  // ADD
               r_a_addr <= instruction[3:0];
               r_a_wdata <= reg_a + r_a_rdata;
@@ -238,6 +248,13 @@ module core (
               end else begin
                 state <= `STATE_FETCH0;
               end
+            end
+
+            8'b1111_0110: begin  // TCP
+              port_addr <= reg_a;
+              port_wdata <= r_a_rdata;
+              port_req <= 1;
+              state <= `STATE_EXEC5;
             end
 
             8'b1111_0xx0: begin  // LD
@@ -527,6 +544,17 @@ module core (
           end else begin
             reg_b <= reg_b + 1;
             reg_a <= reg_a >> 1;
+          end
+        end
+
+        `STATE_EXEC5: begin
+          port_req <= 0;
+
+          if (port_ack) begin
+            r_a_addr <= instruction[7:4];
+            r_a_wdata <= port_rdata;
+            r_a_write <= 1;
+            state <= `STATE_FETCH0;
           end
         end
 
