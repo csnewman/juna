@@ -53,6 +53,33 @@
     ldw {d: register}, {a: register} => a @ d @ 0b1111 @ 0b0100
     stw {d: register}, {a: register} => a @ d @ 0b1111 @ 0b0101
 
+    tcp {d: register}, {a: register} => a @ d @ 0b1111 @ 0b0110
+
+    ldb {d: register}, {a} => asm {
+        ldc i1, {a}
+        ldb {d}, i1
+    }
+    stb {d: register}, {a} => asm {
+        ldc i1, {a}
+        stb {d}, i1
+    }
+    lds {d: register}, {a} => asm {
+        ldc i1, {a}
+        lds {d}, i1
+    }
+    sts {d: register}, {a} => asm {
+        ldc i1, {a}
+        sts {d}, i1
+    }
+    ldw {d: register}, {a} => asm {
+        ldc i1, {a}
+        ldw {d}, i1
+    }
+    stw {d: register}, {a} => asm {
+        ldc i1, {a}
+        stw {d}, i1
+    }
+
     ldc {d: register}, {value} => {
         assert(value >= 0)
         assert(value <= 0xff)
@@ -78,8 +105,8 @@
     }
 
     ; Jump to address
-    jmp {d} => asm { ldc pc, {d} }
-    jeq {d}, {a: register}, {b: register} => asm {
+    brn {d} => asm { ldc pc, {d} }
+    beq {d}, {a: register}, {b: register} => asm {
         ldc i1, {d}
         beq i1, {a}, {b}
     }
@@ -87,15 +114,15 @@
     ;     ldc i1, {d}
     ;     bne i1, {a}, {b}
     ; }
-    jlt {d}, {a: register}, {b: register} => asm {
+    blt {d}, {a: register}, {b: register} => asm {
         ldc i1, {d}
         blt i1, {a}, {b}
     }
-    jle {d}, {a: register}, {b: register} => asm {
+    ble {d}, {a: register}, {b: register} => asm {
         ldc i1, {d}
         ble i1, {a}, {b}
     }
-    jlts {d}, {a: register}, {b: register} => asm {
+    blts {d}, {a: register}, {b: register} => asm {
         ldc i1, {d}
         blts i1, {a}, {b}
     }
@@ -132,9 +159,37 @@
         add sp, sp, i1
     }
 
+    pushall => asm {
+        pushw r0
+        pushw r1
+        pushw r2
+        pushw r3
+        pushw r4
+        pushw r5
+        pushw r6
+        pushw r7
+        pushw r8
+        pushw r9
+        pushw r10
+        pushw r11
+    }
+    popall => asm {
+        popw r11
+        popw r10
+        popw r9
+        popw r8
+        popw r7
+        popw r6
+        popw r5
+        popw r4
+        popw r3
+        popw r2
+        popw r1
+        popw r0
+    }
+
     ; Function calls
     call {d} => asm {
-
         lcb i1, 4
         lcb i2, 6      ; Offset from add to after brn
 
@@ -142,7 +197,17 @@
         sub sp, sp, i1
         stw i2, sp
 
-        jmp {d}
+        brn {d}
+    }
+    call {d: register} => asm {
+        lcb i1, 4
+        lcb i2, 6      ; Offset from add to after brn
+
+        add i2, i2, pc
+        sub sp, sp, i1
+        stw i2, sp
+
+        brn {d}
     }
     ret => asm {
         ldw i2, sp
